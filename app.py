@@ -232,7 +232,7 @@ $('#go').onclick=()=>{clearInterval(TIMER);load($('#date').value)};
 async function runIt(){const d=$('#date').value;
   if(!d)return alert('先选日期');
   $('#go').disabled=true;
-  await fetch('/api/run?date='+d);
+  await fetch('/api/run?date='+d,{method:'POST'});
   TIMER=setInterval(poll,1500);poll()}
 $('#go').onclick=runIt;
 loadDates();load(today);
@@ -250,8 +250,20 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body if isinstance(body, bytes) else body.encode("utf-8"))
 
+    def do_POST(self):
+        self._handle_run()
+
+    def _handle_run(self):
+        d = (parse_qs(urlparse(self.path).query).get("date") or [date.today().isoformat()])[0]
+        run_pipeline(d)  # 查询=每次都实时计算,不吃任何缓存
+        self._send(200, json.dumps({"ok": True, "date": d}, ensure_ascii=False),
+                   "application/json; charset=utf-8")
+
     def do_GET(self):
         p = urlparse(self.path)
+        if p.path == "/api/run":  # 兼容误用 GET 触发(历史上按钮发过 GET,点击无效又难查)
+            self._handle_run()
+            return
         q = parse_qs(p.query)
         if p.path == "/":
             self._send(200, self._page, "text/html; charset=utf-8")
