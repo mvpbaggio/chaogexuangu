@@ -76,6 +76,7 @@ input{padding:6px;font-size:14px;background:#1c1c1c;color:#ddd;border:1px solid 
 <h1>Serenity 瓶颈投资法 · 今日候选 <span id="fresh" class="tag"></span></h1>
 <div id="bar"><button id="go">一键获取今日候选</button>
 <input id="q" placeholder="过滤:代码/名称/行业/评级…">
+<label style="font-size:13px"><input type="checkbox" id="all"> 显示已剔除</label>
 <span id="stat"></span></div>
 <div id="log"></div>
 <div id="tbl"></div>
@@ -86,7 +87,9 @@ const $=s=>document.querySelector(s);
 function esc(v){return v==null?'':String(v)}
 function render(){
   const q=$('#q').value.trim();
-  const rows=DATA.filter(r=>!q||Object.values(r).some(v=>esc(v).includes(q)));
+  const showAll=$('#all').checked;
+  const rows=DATA.filter(r=>(showAll||((r['画像判定']||'').startsWith('保留')))
+                      &&(!q||Object.values(r).some(v=>esc(v).includes(q))));
   const cols=DATA.length?Object.keys(DATA[0]):[];
   $('#tbl').innerHTML='<table><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr>'+
     rows.map(r=>{
@@ -109,7 +112,7 @@ async function poll(){const r=await (await fetch('/api/status')).json();
 async function load(){const r=await (await fetch('/api/data')).json();
   DATA=r.rows;$('#fresh').textContent=r.fresh?('数据日期:今天'):('数据过期:'+r.date);
   render();$('#tbl').style.display=''}
-$('#q').oninput=render;
+$('#q').oninput=render;$('#all').onchange=render;
 $('#go').onclick=async()=>{$('#go').disabled=true;await fetch('/api/run');
   TIMER=setInterval(poll,1500);poll()};
 load();
