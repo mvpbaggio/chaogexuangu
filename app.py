@@ -75,6 +75,7 @@ input{padding:6px;font-size:14px;background:#1c1c1c;color:#ddd;border:1px solid 
 </style></head><body>
 <h1>Serenity 瓶颈投资法 · 今日候选 <span id="fresh" class="tag"></span></h1>
 <div id="bar"><button id="go">一键获取今日候选</button>
+<button id="force" style="background:#e80">强制重跑全流程</button>
 <input id="q" placeholder="过滤:代码/名称/行业/评级…">
 <label style="font-size:13px"><input type="checkbox" id="all"> 显示已剔除</label>
 <span id="stat"></span></div>
@@ -106,15 +107,18 @@ async function poll(){const r=await (await fetch('/api/status')).json();
   if(r.state!='idle'){const log=$('#log');log.style.display='block';log.textContent=r.lines.join('\\n');log.scrollTop=1e9}
   if(r.state=='running')return;
   clearInterval(TIMER);TIMER=null;
-  if(r.state=='done'||r.fresh){await load();$('#go').disabled=false}
+  if(r.state=='done'||r.fresh){await load();$('#go').disabled=false;$('#force').disabled=false}
   if(r.state=='fail')$('#stat').textContent='失败,见日志';
 }
 async function load(){const r=await (await fetch('/api/data')).json();
   DATA=r.rows;$('#fresh').textContent=r.fresh?('数据日期:今天'):('数据过期:'+r.date);
   render();$('#tbl').style.display=''}
 $('#q').oninput=render;$('#all').onchange=render;
-$('#go').onclick=async()=>{$('#go').disabled=true;await fetch('/api/run');
-  TIMER=setInterval(poll,1500);poll()};
+async function runIt(force){[ $('#go'),$('#force') ].forEach(b=>b.disabled=true);
+  await fetch('/api/run'+(force?'?force=1':''));
+  TIMER=setInterval(poll,1500);poll()}
+$('#go').onclick=()=>runIt(false);
+$('#force').onclick=()=>runIt(true);
 load();
 </script></body></html>"""
 
@@ -146,10 +150,13 @@ class H(BaseHTTPRequestHandler):
             self._send(404, "not found", "text/plain")
 
     def do_POST(self):
-        if urlparse(self.path).path == "/api/run":
-            if not is_fresh():
+        p = urlparse(self.path)
+        if p.path == "/api/run":
+            force = "force=1" in (p.query or "")
+            if force or not is_fresh():
                 run_pipeline()
-            self._send(200, json.dumps({"ok": True}, ensure_ascii=False), "application/json; charset=utf-8")
+            self._send(200, json.dumps({"ok": True, "force": force}, ensure_ascii=False),
+                       "application/json; charset=utf-8")
         else:
             self._send(404, "not found", "text/plain")
 
