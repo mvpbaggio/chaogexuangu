@@ -4,11 +4,14 @@
 向量化计算 2355 只候选的财务拐点判定,代替逐股调用(39h -> ~3min)。
 口径标注(vs check.py 逐股版):
   ①毛利率: (营业总收入-营业支出)/营业总收入,单季差分 —— 同原版
-  ②CapEx:  用"投资性现金流净流出"代理原"购建固定资产支付现金" —— 噪声更大,标注
-  ②在建工程同比: 批量表无此列 —— 标"待核实"不计分
+  ②CapEx:  批量现金流量表无"购建固定资产"细分,代理口径假阳性率 14/15(2026-09-05
+           实测),**已降为参考列不计分** —— 晋级看 ①③④ 全过,②仅供人工参考
   ③OCF/净利润: 累计口径 —— 同原版
   ④合同负债: 用"预收账款"代理(东财汇总表未细分) —— 标注
-用法:python batch_check2.py   输出 full_screen_results.csv
+  净利同比: lrb 自带列,直接输出,二次确认不依赖外部脚本
+晋级规则(2026-09-05 校准): ①③④ 全过=晋级;
+  观察=③过 + 净利同比≥30% + ①/④至少1项过(强在建型标的盲区补位);
+  其余淘汰。用法:python batch_check2.py   输出 full_screen_results.csv
 """
 import os, sys, io, time
 os.environ.setdefault("TQDM_DISABLE", "1")
@@ -73,31 +76,35 @@ def main():
             # DATES 升序,g3=[旧,中,新];"连续2季环比升"= 新>中>旧
             v1 = bool(g3[2] > g3[1] > g3[0]) if all(pd.notna(g3)) else "?"
             k3 = [capex.loc[code, DATES[2]], capex.loc[code, DATES[3]], capex.loc[code, DATES[4]]]
-            v2 = bool(k3[2] > k3[1] > k3[0]) if all(pd.notna(k3)) else "?"
+            # ②CapEx 代理假阳性率 14/15,不计分,仅输出参考
+            v2ref = bool(k3[2] > k3[1] > k3[0]) if all(pd.notna(k3)) else "?"
             np_ = profit.loc[code, DATES[4]]
             v3 = ("?" if (pd.isna(np_) or np_ <= 0)  # 净利为负时 OCF/净利 比值无意义
                   else bool(ocf.loc[code, DATES[4]] / np_ >= 0.8))
             p3 = [prepay.loc[code, DATES[2]], prepay.loc[code, DATES[3]], prepay.loc[code, DATES[4]]]
             v4 = bool(p3[2] > p3[1] > p3[0]) if all(pd.notna(p3)) else "?"
-            passed = sum(1 for x in (v1, v2, v3, v4) if x is True)
             npyoy = data[("lrb", DATES[4])].loc[code, "净利润同比"] if "净利润同比" in data[("lrb", DATES[4])].columns else None
-            # 观察档:盈利质量过关(③)且净利同比高增,但结构指标不足——批量看不到在建工程/真实合同负债,
-            # 强在建型标的(如艾森股份)靠此档补盲区,进精确复核
-            grade = ("晋级" if passed >= 3 else
-                     "观察" if v3 is True and isinstance(npyoy, (int, float)) and not pd.isna(npyoy) and npyoy >= 30 else
+            yoy_ok = isinstance(npyoy, (int, float)) and not pd.isna(npyoy)
+            # 计分判定项=①③④(②代理不计分);全过=晋级
+            core = (v1, v3, v4)
+            passed = sum(1 for x in core if x is True)
+            # 观察档(加严):③过 + 净利同比≥30% + ①/④至少1项过 —— 强在建型盲区补位
+            grade = ("晋级" if passed == 3 else
+                     "观察" if v3 is True and yoy_ok and npyoy >= 30 and (v1 is True or v4 is True) else
                      "淘汰")
             rows.append([code, c["name"], c["mktcap亿"], c["估算日额万"],
-                         str(v1), str(v2), "?", str(v3), str(v4), passed, grade])
+                         str(v1), str(v2ref), "?", str(v3), str(v4), passed,
+                         npyoy if yoy_ok else "", grade])
         except KeyError:
             rows.append([code, c["name"], c["mktcap亿"], c["估算日额万"],
                          "?", "?", "?", "?", "?", 0, "缺报告期数据"])
 
     out = pd.DataFrame(rows, columns=["code", "name", "mktcap亿", "日额万",
-                                      "①毛利率升", "②CapEx增(代理)", "②在建同比(待核实)",
-                                      "③OCF/净利", "④预收增(代理)", "通过项数", "备注"])
-    out.sort_values("通过项数", ascending=False).to_csv("full_screen_results.csv", index=False, encoding="utf-8-sig")
-    print(f"# 完成 {len(out)} 只; 通过>=3项: {(out['通过项数']>=3).sum()} 只")
-    print(out[out["通过项数"] >= 3].to_string(index=False))
+                                      "①毛利率升", "②CapEx增(参考不计分)", "②在建同比(待核实)",
+                                      "③OCF/净利", "④预收增(代理)", "通过项数(①③④)", "净利同比%", "备注"])
+    out.sort_values("通过项数(①③④)", ascending=False).to_csv("full_screen_results.csv", index=False, encoding="utf-8-sig")
+    print(f"# 完成 {len(out)} 只; ①③④全过(晋级): {(out['通过项数(①③④)']>=3).sum()} 只; 观察: {(out['备注']=='观察').sum()} 只")
+    print(out[out["通过项数(①③④)"] >= 3].to_string(index=False))
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ python screen.py 30 100 2.0       # 自定义:市值 30-100 亿、换手≥2%
 **② 财务拐点初筛**(约 3 分钟,东财按报告期批量三表,全市场向量化):
 
 ```bash
-python batch_check2.py            # 输出 full_screen_results.csv,取通过≥3 项
+python batch_check2.py            # 输出 full_screen_results.csv:晋级(①③④全过)+观察档,②CapEx代理仅参考
 ```
 
 **③ 精确终审**(逐只,真实在建工程/合同负债/研报数,替代批量代理口径):
