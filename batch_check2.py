@@ -59,11 +59,19 @@ def main():
     ocf = series("xjll", "经营性现金流-现金流量净额").astype(float)
     inv = series("xjll", "投资性现金流-现金流量净额").astype(float)
 
-    # 单季差分(Q1 保持原值)
+    # 单季差分:累计序列 H1->Q3->FY->Q1->H1 中,Q1 报告本身就是单季值,
+    # 差分(Q1-年报)得负数、负负得正出伪毛利率(实测 99.8% 标的被此 bug 污染)。
+    # 规则:3 月末报告期保持原值,其余列=本期累计-上期累计;中间缺报保持 NaN。
     def q_single(df):
-        return df.diff(axis=1).fillna(df)
+        d = df.diff(axis=1)
+        d.iloc[:, 0] = df.iloc[:, 0]
+        q1_cols = [c for c in df.columns if c.endswith("0331")]
+        for c in q1_cols:
+            d[c] = df[c]
+        return d
 
     gm = ((q_single(rev) - q_single(cost)) / q_single(rev) * 100)
+    gm = gm.mask(q_single(rev) <= 0)  # 单季营收≤0 时毛利率无意义
     capex = -q_single(inv)  # 投资净流出为正
     capex = capex.where(capex.abs() < 1e15)  # 剔除极端异常值
 
@@ -89,9 +97,15 @@ def main():
             core = (v1, v3, v4)
             passed = sum(1 for x in core if x is True)
             # 观察档(加严):③过 + 净利同比≥30% + ①/④至少1项过 —— 强在建型盲区补位
-            grade = ("晋级" if passed == 3 else
-                     "观察" if v3 is True and yoy_ok and npyoy >= 30 and (v1 is True or v4 is True) else
-                     "淘汰")
+            # SOP 二次确认:净利同比<0 直接判伪拐点,即使①③④全过(SOP:净利为负时③标待核实)
+            if passed == 3 and yoy_ok and npyoy < 0:
+                grade = "伪拐点(净利同比<0)"
+            elif passed == 3:
+                grade = "晋级"
+            elif v3 is True and yoy_ok and npyoy >= 30 and (v1 is True or v4 is True):
+                grade = "观察"
+            else:
+                grade = "淘汰"
             rows.append([code, c["name"], c["mktcap亿"], c["估算日额万"],
                          str(v1), str(v2ref), "?", str(v3), str(v4), passed,
                          npyoy if yoy_ok else "", grade])

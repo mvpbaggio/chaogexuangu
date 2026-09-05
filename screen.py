@@ -19,14 +19,13 @@ MIN_AMT = 5000.0  # 万元
 
 def main():
     spot = ak.stock_zh_a_spot_tx()
-    spot = spot.rename(columns={"code": "code", "name": "name", "zsz": "mktcap",
-                                "hsl": "hsl", "zxj": "price", "volume": "volume"})
+    # 列名本就是 code/name/zsz/hsl/zxj/volume,无需 rename
     spot["code"] = spot["code"].str.replace(r"^(sh|sz|bj)", "", regex=True)
     spot = spot[spot["code"].str.match(r"^(60|00|30|68)\d{4}$")]
     spot = spot[~spot["name"].str.contains("ST|退", na=False)]
-    spot["mktcap"] = pd.to_numeric(spot["mktcap"], errors="coerce")
+    spot["mktcap"] = pd.to_numeric(spot["zsz"], errors="coerce")
     spot["hsl"] = pd.to_numeric(spot["hsl"], errors="coerce")
-    spot["price"] = pd.to_numeric(spot["price"], errors="coerce")
+    spot["price"] = pd.to_numeric(spot["zxj"], errors="coerce")
     spot["volume"] = pd.to_numeric(spot["volume"], errors="coerce")
     spot["est_amt万"] = (spot["volume"] * 100 * spot["price"] / 1e4).round(0)
     spot = spot[(spot["mktcap"] >= MIN_MC) & (spot["mktcap"] <= MAX_MC)]

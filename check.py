@@ -62,9 +62,14 @@ def em_symbol(code: str) -> str:
 
 
 def q_single(df: pd.DataFrame, col: str) -> pd.Series:
-    """累计值 -> 单季度值(第一个报告期保持原值)。REPORT_DATE 升序。"""
+    """累计值 -> 单季度值。Q1(3月末)报告本身就是单季值,不差分(差分=Q1-年报,负负得正出伪值)。
+    仅首期用原值;中间报告期缺失保持 NaN,不拿累计值冒充单季。REPORT_DATE 升序。"""
     s = df[col].astype(float)
-    return s.diff().fillna(s)
+    d = s.diff()
+    d.iloc[0] = s.iloc[0]
+    months = pd.to_datetime(df["REPORT_DATE"]).dt.month
+    d[months == 3] = s[months == 3]
+    return d
 
 
 def have(df: pd.DataFrame, col: str) -> bool:
@@ -95,8 +100,9 @@ def step2_fin(symbol: str) -> dict:
         gm_q = pd.Series(dtype=float)
     capex_q = (q_single(cash, "CONSTRUCT_LONG_ASSET")
                if have(cash, "CONSTRUCT_LONG_ASSET") else pd.Series(dtype=float))
-    ocf_ratio = (cash["NETCASH_OPERATE"].astype(float)
-                 / profit["PARENT_NETPROFIT"].astype(float)).round(2)
+    # OCF/净利 按报告期对齐再除:两表报告期数不同时按位置相除会静默错位
+    ocf_ratio = (cash.set_index("REPORT_DATE")["NETCASH_OPERATE"].astype(float)
+                 / profit.set_index("REPORT_DATE")["PARENT_NETPROFIT"].astype(float)).round(2)
     contract = (balance["CONTRACT_LIAB"].astype(float)
                 if have(balance, "CONTRACT_LIAB") else pd.Series(dtype=float))
     # 在建工程字段(东财版本漂移:CIP / CONSTRUCT_IN_PROCESS)
@@ -114,7 +120,7 @@ def step2_fin(symbol: str) -> dict:
             "单季毛利率%": gm_q.iloc[i] if not gm_q.empty else None,
             "单季CapEx(万)": round(capex_q.iloc[i] / 1e4, 1) if not capex_q.empty and pd.notna(capex_q.iloc[i]) else None,
             "在建工程同比%": cip_yoy.get(d) if not cip_yoy.empty else None,
-            "累计OCF/净利润": ocf_ratio.iloc[i] if not ocf_ratio.empty else None,
+            "累计OCF/净利润": ocf_ratio.get(d),
             "合同负债(万)": round(contract.iloc[i] / 1e4, 1) if not contract.empty else None,
         })
     na = pd.isna
