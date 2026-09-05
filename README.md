@@ -15,10 +15,20 @@ Serenity 瓶颈投资法 A 股全市场选股工具链:从全 A 股 5000+ 只,�
 
 完整规则见 [serenity-analyst.md](serenity-analyst.md)(含标准作业程序 SOP 和实战中踩出的 7 条坑清单)。
 
-## 快速开始
+## 快速开始(网页版,推荐)
 
 ```bash
 pip install -r requirements.txt   # Python 3.10+;只依赖 akshare + pandas,免费公开接口
+python selftest.py                # 先自检(不联网),4/4 OK 再往下
+python app.py                     # 起本地网页 http://127.0.0.1:8000
+```
+
+打开网页点"一键获取今日候选":数据新鲜(当天跑过)秒出全表;过期自动跑完整流水线(约 4 分钟,页面实时显示进度日志)。支持关键字过滤、红队评级高亮。仅监听本机 127.0.0.1。
+
+## 快速开始(命令行版)
+
+```bash
+pip install -r requirements.txt
 python selftest.py                # 先自检(不联网),4/4 OK 再往下
 python run_all.py 30 150 1.0      # 一键机器段:粗筛→财务初筛→画像预筛,约 4 分钟
 ```
