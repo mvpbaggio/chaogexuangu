@@ -207,7 +207,9 @@ async function load(d){
   $('#warn').textContent=r.warn||'';
 }
 async function poll(){
-  const r=await(await fetch('/api/status')).json();
+  let r;
+  try{r=await(await fetch('/api/status')).json()}
+  catch(e){$('#stat').textContent='服务器未连接(请确认 python app.py 在运行)';return}
   let stat='';
   if(r.state=='running')stat='实时计算中('+esc(r.date)+') '+((Date.now()/1000-r.started)|0)+'s…';
   else if(r.state=='done'&&r.ended)stat='上次计算 '+esc(r.date)+' 完成,耗时 '+(((r.ended-r.started)/60)|0)+'分'+((((r.ended-r.started)/60)%1)*60|0)+'秒';
@@ -286,5 +288,12 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     H._page = PAGE.replace("__BUILD__", time.strftime("%Y-%m-%d %H:%M"))
-    print(f"Serenity 选股网页: http://127.0.0.1:{PORT}  (Ctrl+C 退出)", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()
+    ports = [int(x) for x in os.environ.get("PORTS", "8001,8002").split(",")]
+    for port in ports:
+        threading.Thread(
+            target=ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever,
+            daemon=True).start()
+        print(f"Serenity 选股网页: http://127.0.0.1:{port}", flush=True)
+    print("(Ctrl+C 退出)", flush=True)
+    while True:
+        time.sleep(3600)
