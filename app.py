@@ -82,7 +82,7 @@ input{padding:6px;font-size:14px;background:#1c1c1c;color:#ddd;border:1px solid 
 <span id="stat"></span></div>
 <div id="log"></div>
 <div id="tbl"></div>
-<p style="color:#777;font-size:12px">机器预筛结果(画像保留区排前),红队评级来自人工终审存档;研究用途,不构成投资建议。</p>
+<p style="color:#777;font-size:12px">机器预筛结果(画像保留区排前),红队评级来自人工终审存档;研究用途,不构成投资建议。<b>BUILD __BUILD__</b></p>
 <script>
 let DATA=[],TIMER=null;
 const $=s=>document.querySelector(s);
@@ -143,7 +143,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         p = urlparse(self.path)
         if p.path == "/":
-            self._send(200, PAGE, "text/html; charset=utf-8")
+            self._send(200, self._page, "text/html; charset=utf-8")
         elif p.path == "/api/data":
             fresh = is_fresh()
             rows = load_results() if fresh else []
@@ -169,5 +169,8 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    PAGE_S = PAGE.replace("__BUILD__", time.strftime("%Y-%m-%d %H:%M"))
     print(f"Serenity 选股网页: http://127.0.0.1:{PORT}  (Ctrl+C 退出)", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()
+    TH = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+    H._page = PAGE_S  # 当前构建版页面(带 BUILD 戳)
+    TH.serve_forever()
