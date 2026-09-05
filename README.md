@@ -18,35 +18,31 @@ Serenity 瓶颈投资法 A 股全市场选股工具链:从全 A 股 5000+ 只,�
 ## 快速开始
 
 ```bash
-pip install -r requirements.txt   # Python 3.10+
+pip install -r requirements.txt   # Python 3.10+;只依赖 akshare + pandas,免费公开接口
+python selftest.py                # 先自检(不联网),4/4 OK 再往下
+python run_all.py 30 150 1.0      # 一键机器段:粗筛→财务初筛→画像预筛,约 4 分钟
 ```
 
-**① 全市场粗筛**(秒级,腾讯快照:市值 30-150 亿 + 换手 + 成交额):
+机器段产物链:`candidates.csv`(市值/流动性粗筛)→ `full_screen_results.csv`(财务判定,**晋级**+**观察**+伪拐点拦截,含净利同比列)→ `pool_candidates.csv`(贴 EM2016 行业+关键词画像剔除,按保留优先排序)。
+
+也可分步执行与调参:
 
 ```bash
-python screen.py                  # 默认阈值,输出 candidates.csv
-python screen.py 30 100 2.0       # 自定义:市值 30-100 亿、换手≥2%
+python screen.py 30 150 1.0       # 分步①:粗筛,可自定义市值/换手阈值
+python batch_check2.py            # 分步②:报告期自动推导(按披露截止取最近5期),无需手改
+python build_pool.py              # 分步③:画像预筛(EM2016 行业 + 11 组剔除关键词)
+python check.py 301568            # 单只精确终审:真实在建工程/合同负债/单季三表,JSON 输出
+python industry_map.py codes.txt  # 任意代码清单的行业映射(新浪+F10 组合)
 ```
 
-**② 财务拐点初筛**(约 3 分钟,东财按报告期批量三表,全市场向量化):
+人工/LLM 段(机器替代不了的部分):
 
-```bash
-python batch_check2.py            # 输出 full_screen_results.csv:晋级(①③④全过)+观察档,②CapEx代理仅参考
-python build_pool.py              # 第三步画像预筛:贴行业+关键词剔除,输出 pool_candidates.csv 供终审
-python run_all.py 30 150 1.0      # 一键全流程:screen -> batch_check2 -> build_pool(约4分钟)
-python selftest.py                # 合成数据自检(不联网),改动判定逻辑后必跑
-```
+1. **画像终审**:从 `pool_candidates.csv` 保留区里按产业常识定夺(关键词有漏网/误伤,以人判为准)
+2. **精确终审**:对入选者逐只 `python check.py <代码>`,两引擎一致才晋级,冲突降"待定"
+3. **红队证伪**:每只一搜(最新季报实绩+风险公告),三维度证伪,高风险≥2 否决;扣非与归母增速背离是伪拐点重灾区
+4. **熔断里程碑**:通过者按模板定 3-5 个 6 个月里程碑(见 serenity-screen-result.md 示例)
 
-**③ 精确终审**(逐只,真实在建工程/合同负债/研报数,替代批量代理口径):
-
-```bash
-python check.py 600519            # 单只全量指标 JSON
-python check.py 600519 --hist     # 附带近 60 日行情
-```
-
-> ⚠️ 批量引擎(②)只做初筛,其毛利率/CapEx 为代理口径,有假阳性——**初筛通过的必须用 check.py 终审**,两引擎结论冲突时以精确口径为准,降级"待定"。
-
-**④ 红队证伪**:把候选池交给 LLM(或在 [serenity-analyst.md](serenity-analyst.md) 角色下驱动任何 AI),按第四步检索公告/研报写证伪报告。
+全流程规则与实战坑见 [serenity-analyst.md](serenity-analyst.md);历次筛选结果存档见 [serenity-screen-result.md](serenity-screen-result.md)。
 
 ## 一次完整实盘的结果(2026-09)
 
