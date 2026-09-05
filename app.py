@@ -15,7 +15,7 @@ FRESH_FILE = os.path.join(ROOT, "pool_candidates.csv")   # 流水线末段产物
 PORT = int(os.environ.get("PORT", "8000"))
 
 # 全局运行态(单机单用户工具,一把锁够用)
-RUN = {"state": "idle", "lines": [], "started": 0.0}  # idle|running|done|fail
+RUN = {"state": "idle", "lines": [], "started": 0.0, "ended": 0.0}  # idle|running|done|fail
 LOCK = threading.Lock()
 
 
@@ -32,6 +32,7 @@ def run_pipeline():
         for line in p.stdout:
             RUN["lines"].append(line.rstrip())
         code = p.wait()
+        RUN["ended"] = time.time()
         RUN["state"] = "done" if code == 0 else "fail"
     with LOCK:
         if RUN["state"] == "running":
@@ -103,7 +104,12 @@ function render(){
     '</table><p>'+rows.length+' / '+DATA.length+' 只</p>';
 }
 async function poll(){const r=await (await fetch('/api/status')).json();
-  $('#stat').textContent=r.state=='running'?('运行中 '+((Date.now()/1000-r.started)|0)+'s'):'';
+  let stat='';
+  if(r.state=='running')stat='运行中 '+((Date.now()/1000-r.started)|0)+'s';
+  else if(r.state=='done'&&r.ended)stat='上次跑完 '+new Date(r.ended*1000).toLocaleTimeString()+
+    ',耗时 '+(((r.ended-r.started)/60)|0)+'分'+((((r.ended-r.started)/60)%1)*60|0)+'秒';
+  else if(r.state=='fail')stat='失败,见日志';
+  $('#stat').textContent=stat;
   if(r.state!='idle'){const log=$('#log');log.style.display='block';log.textContent=r.lines.join('\\n');log.scrollTop=1e9}
   if(r.state=='running')return;
   clearInterval(TIMER);TIMER=null;
