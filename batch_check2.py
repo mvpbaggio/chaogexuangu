@@ -14,14 +14,36 @@
   其余淘汰。用法:python batch_check2.py   输出 full_screen_results.csv
 """
 import os, sys, io, time
+from datetime import date
 os.environ.setdefault("TQDM_DISABLE", "1")
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+# 幂等包装:已被包过/已是 utf-8 时不要再包,否则旧 wrapper 被 GC 会关闭底层 buffer,
+# 模块将无法被 import(如 selftest/调度器复用 last_report_dates)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 import akshare as ak
 import pandas as pd
 
+
+def last_report_dates(n=5, today=None):
+    """最近 n 个已披露完毕的报告期(YYYYMMDD,升序)。
+    披露截止:Q1+30d / 半年报+62d / Q3+31d / 年报+120d;未到截止的季度不取,
+    否则差分链上出现大面积缺报,判定会静默劣化成'?'。"""
+    today = today or date.today()
+    deadlines = {3: 30, 6: 62, 9: 31, 12: 120}
+    ends = []
+    y = today.year
+    while len(ends) < n:
+        for m in (12, 9, 6, 3):
+            d = date(y, m, {3: 31, 6: 30, 9: 30, 12: 31}[m])
+            if d <= today and (today - d).days >= deadlines[m]:
+                ends.append(d)
+        y -= 1
+    return [d.strftime("%Y%m%d") for d in sorted(ends[:n])]
+
+
 # 5 个报告期(累计值),差分出最近 4 个单季
-DATES = ["20250630", "20250930", "20251231", "20260331", "20260630"]
+DATES = last_report_dates(5)
 
 
 def retry(fn, name, n=3):

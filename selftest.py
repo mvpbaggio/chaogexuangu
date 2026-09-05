@@ -66,8 +66,27 @@ def test_yoy_guard():
     assert grade(2, True, False, None, True, False) == "淘汰"  # yoy 缺失不给观察
 
 
+def test_profile_judge():
+    """画像剔除关键词必须咬住该剔的、放过该留的(build_pool.judge)。"""
+    spec = importlib.util.spec_from_file_location("bp", os.path.join(os.path.dirname(__file__), "build_pool.py"))
+    bp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bp)
+    cases = {
+        "医药生物-生物医药-生物医药": "剔除", "医药生物-医疗服务-医疗服务": "剔除",
+        "基础化工-化学制品-日用化学品": "剔除", "轻工制造-家具-家具制造": "剔除",
+        "有色金属-贵金属-黄金": "剔除", "银行-股份制银行": "剔除",
+        "电子设备-半导体-半导体分立器件": "保留", "机械设备-金属制品-金属制品": "保留",
+        "基础化工-合成纤维及树脂-氨纶": "保留", "": "保留",
+    }
+    for ind, expect in cases.items():
+        got = bp.judge(ind)
+        ok = got.startswith(expect)
+        assert ok, (ind, got)
+
+
 if __name__ == "__main__":
-    test_q_single(); print("1/3 q_single OK")
-    test_tri_direction(); print("2/3 差分方向/毛利率 OK")
-    test_yoy_guard(); print("3/3 伪拐点/观察档规则 OK")
-    print("3/3 OK")
+    test_q_single(); print("1/4 q_single OK")
+    test_tri_direction(); print("2/4 差分方向/毛利率 OK")
+    test_yoy_guard(); print("3/4 伪拐点/观察档规则 OK")
+    test_profile_judge(); print("4/4 画像剔除关键词 OK")
+    print("4/4 OK")

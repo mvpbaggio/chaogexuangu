@@ -32,13 +32,15 @@ python screen.py 30 100 2.0       # 自定义:市值 30-100 亿、换手≥2%
 
 ```bash
 python batch_check2.py            # 输出 full_screen_results.csv:晋级(①③④全过)+观察档,②CapEx代理仅参考
+python build_pool.py              # 第三步画像预筛:贴行业+关键词剔除,输出 pool_candidates.csv 供终审
+python run_all.py 30 150 1.0      # 一键全流程:screen -> batch_check2 -> build_pool(约4分钟)
+python selftest.py                # 合成数据自检(不联网),改动判定逻辑后必跑
 ```
 
 **③ 精确终审**(逐只,真实在建工程/合同负债/研报数,替代批量代理口径):
 
 ```bash
 python check.py 600519            # 单只全量指标 JSON
-python selftest.py               # 合成数据自检(不联网),改动判定逻辑后必跑
 python check.py 600519 --hist     # 附带近 60 日行情
 ```
 
