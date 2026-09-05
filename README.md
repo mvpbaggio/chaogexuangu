@@ -38,6 +38,7 @@ python batch_check2.py            # 输出 full_screen_results.csv:晋级(①③
 
 ```bash
 python check.py 600519            # 单只全量指标 JSON
+python selftest.py               # 合成数据自检(不联网),改动判定逻辑后必跑
 python check.py 600519 --hist     # 附带近 60 日行情
 ```
 
