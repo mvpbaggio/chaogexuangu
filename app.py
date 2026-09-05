@@ -41,7 +41,7 @@ def run_pipeline(asof: str):
     """后台跑 run_all.py(可选 as-of 日期),产物存档到 results/<asof>。"""
     def work():
         env = dict(os.environ, SERENITY_ASOF=asof)
-        p = subprocess.Popen([sys.executable, "run_all.py", "30", "150", "1.0"],
+        p = subprocess.Popen([sys.executable, "run_all.py", "30", "150", "0"],
                              cwd=ROOT, env=env, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, text=True,
                              encoding="utf-8", errors="replace", bufsize=1)

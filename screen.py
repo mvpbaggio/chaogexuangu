@@ -13,7 +13,7 @@ import pandas as pd
 
 MIN_MC = float(sys.argv[1]) if len(sys.argv) > 1 else 30
 MAX_MC = float(sys.argv[2]) if len(sys.argv) > 2 else 150
-MIN_HSL = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
+MIN_HSL = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
 MIN_AMT = 5000.0  # 万元
 
 

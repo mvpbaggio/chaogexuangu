@@ -72,6 +72,18 @@ def q_single(df: pd.DataFrame, col: str) -> pd.Series:
     return d
 
 
+def ocf_sync_ok(ratio, ocf_yoy, np_yoy):
+    """③ 工程化(用户原话:经营现金流净额与净利润增速同步增长):
+    OCF/净利≥0.8(盈利质量),且净利同比>0 时 OCF 同比亦增长(增速同步)。
+    净利同比≤0 的标的不适用本条(另有伪拐点规则拦截)。"""
+    if ratio is None or pd.isna(ratio) or ratio < 0.8:
+        return False
+    if np_yoy is not None and not pd.isna(np_yoy) and np_yoy > 0:
+        if ocf_yoy is None or pd.isna(ocf_yoy) or ocf_yoy < 0:
+            return False
+    return True
+
+
 def have(df: pd.DataFrame, col: str) -> bool:
     return col in df.columns
 
@@ -111,6 +123,11 @@ def step2_fin(symbol: str) -> dict:
         cip_yoy = balance.set_index("REPORT_DATE")[cip_col].pct_change(4).mul(100).round(2)
     else:
         cip_yoy = pd.Series(dtype=float)
+    # 增速同步判定需要 OCF 与归母净利的同比(vs 去年同期,4 个报告期前)
+    ocf_series = cash.set_index("REPORT_DATE")["NETCASH_OPERATE"].astype(float)
+    np_series = profit.set_index("REPORT_DATE")["PARENT_NETPROFIT"].astype(float)
+    ocf_yoy = ocf_series.pct_change(4)
+    np_yoy = np_series.pct_change(4)
 
     rows = []
     for i in range(-4, 0):
@@ -135,9 +152,11 @@ def step2_fin(symbol: str) -> dict:
                             else chk(tri([capex_q.iloc[-1], capex_q.iloc[-2], capex_q.iloc[-3]]))),
         "②在建工程同比≥30%": ("待核实(字段缺失)" if cip_yoy.empty or na(cip_yoy.iloc[-1])
                              else bool(cip_yoy.iloc[-1] >= 30)),
-        "③OCF/净利润≥0.8": ("待核实(净利为负,比值无意义)" if profit["PARENT_NETPROFIT"].iloc[-1] <= 0
-                           else ("待核实(数据缺失)" if ocf_ratio.empty or na(ocf_ratio.iloc[-1])
-                                 else bool(ocf_ratio.iloc[-1] >= 0.8))),
+        "③现金流与净利增速同步": ("待核实(净利为负,比值无意义)" if profit["PARENT_NETPROFIT"].iloc[-1] <= 0
+                             else ("待核实(数据缺失)" if ocf_ratio.empty or na(ocf_ratio.iloc[-1])
+                                   else chk(ocf_sync_ok(ocf_ratio.get(d),
+                                                        ocf_yoy.get(d) if not ocf_yoy.empty else None,
+                                                        np_yoy.get(d) if not np_yoy.empty else None)))),
         "④合同负债连续2季环比增": ("待核实(字段缺失)" if contract.empty
                              else chk(tri([contract.iloc[-1], contract.iloc[-2], contract.iloc[-3]]))),
     }
@@ -156,13 +175,24 @@ def step3_market(symbol: str) -> dict:
         ratings_3m = int((research["日期"] >= pd.Timestamp.now() - pd.DateOffset(months=3)).sum())
     except Exception as e:
         ratings_3m = f"获取失败: {e}"
+    # 机构持仓(用户审定:参考列,不硬剔除)。十大流通股东中机构性质的持股比例合计
+    inst_holders = "待核实(接口失败)"
+    try:
+        gdfx = retry(lambda: ak.stock_gdfx_free_top_10_em(symbol=tx_symbol(symbol)), "十大流通股东")
+        kw = ("基金|证券|保险|信托|QFII|理财|资管|社保|养老金|年金|银行|私募|阳光私募|投资公司|财务公司")
+        hit = gdfx[gdfx["股东性质"].astype(str).str.contains(kw, na=False, regex=True)]
+        inst_holders = round(pd.to_numeric(hit["占总流通股本持股比例"], errors="coerce").sum(), 2)
+    except Exception:
+        pass
     return {
         "总市值(亿)": round(close * shares / 1e8, 2),
         "股价": close,
         "近20日日均成交额(万)": round(avg_amount / 1e4, 1),
         "近3个月券商研报篇数": ratings_3m,
+        "前十大流通股东机构占比%": inst_holders,
         "数据日期": str(hist["date"].iloc[-1]),
-        "备注": "研报篇数≠评级家数(同家机构多篇会重复计),精确评级家数待人工核实;行业/市占率由分析环节补充",
+        "备注": "研报篇数≠买入评级家数(同家机构多篇会重复计,不分评级方向),精确评级家数待人工核实;"
+               "机构持仓为名称关键词近似口径,仅作参考列不参与硬剔除;行业/市占率由分析环节补充",
     }
 
 

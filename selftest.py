@@ -84,9 +84,21 @@ def test_profile_judge():
         assert ok, (ind, got)
 
 
+def test_ocf_sync():
+    """③ 工程化:OCF/净利≥0.8 且 净利同比>0 时 OCF 同比亦增长(check.ocf_sync_ok)。"""
+    ok = check.ocf_sync_ok
+    assert ok(1.2, 0.5, 0.3) is True          # 比值够,双正同步
+    assert ok(1.2, -0.2, 0.3) is False        # 净利增长但现金流负增长=不同步
+    assert ok(0.5, 0.5, 0.3) is False         # 比值不足
+    assert ok(1.2, -0.2, -0.1) is True        # 净利下滑时不适用增速条件(伪拐点规则另拦)
+    assert ok(1.2, None, 0.3) is False        # OCF 同比缺失=无法证明同步
+    assert ok(1.2, 0.5, None) is True         # 净利同比缺失,退化为比值判定
+
+
 if __name__ == "__main__":
-    test_q_single(); print("1/4 q_single OK")
-    test_tri_direction(); print("2/4 差分方向/毛利率 OK")
-    test_yoy_guard(); print("3/4 伪拐点/观察档规则 OK")
-    test_profile_judge(); print("4/4 画像剔除关键词 OK")
-    print("4/4 OK")
+    test_q_single(); print("1/5 q_single OK")
+    test_tri_direction(); print("2/5 差分方向/毛利率 OK")
+    test_yoy_guard(); print("3/5 伪拐点/观察档规则 OK")
+    test_ocf_sync(); print("4/5 现金流-净利增速同步 OK")
+    test_profile_judge(); print("5/5 画像剔除关键词 OK")
+    print("5/5 OK")
