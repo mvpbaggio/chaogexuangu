@@ -133,9 +133,8 @@ footer{color:#8b959e;font-size:12px;padding:14px 20px;text-align:center}
 <header>
   <h1>Serenity 瓶颈投资法 · 候选筛选</h1>
   <input type="date" id="date">
-  <select id="dates"><option value="">选择存档日期…</option></select>
-  <button id="go">查询</button>
-  <button id="force" class="orange">按此日期重算</button>
+  <select id="dates"><option value="">回放历史存档…</option></select>
+  <button id="go">实时筛选(重新计算)</button>
 </header>
 <main>
   <div class="funnel" id="funnel"></div>
@@ -210,18 +209,18 @@ async function load(d){
 async function poll(){
   const r=await(await fetch('/api/status')).json();
   let stat='';
-  if(r.state=='running')stat='重算中('+esc(r.date)+') '+((Date.now()/1000-r.started)|0)+'s…';
-  else if(r.state=='done'&&r.ended)stat='上次重算 '+esc(r.date)+' 完成,耗时 '+(((r.ended-r.started)/60)|0)+'分'+((((r.ended-r.started)/60)%1)*60|0)+'秒';
+  if(r.state=='running')stat='实时计算中('+esc(r.date)+') '+((Date.now()/1000-r.started)|0)+'s…';
+  else if(r.state=='done'&&r.ended)stat='上次计算 '+esc(r.date)+' 完成,耗时 '+(((r.ended-r.started)/60)|0)+'分'+((((r.ended-r.started)/60)%1)*60|0)+'秒';
   else if(r.state=='fail')stat='失败,见日志';
   $('#stat').textContent=stat;
   if(r.state!='idle'){const log=$('#log');log.style.display='block';log.textContent=r.lines.join('\\n');log.scrollTop=1e9}
   if(r.state=='running')return;
-  clearInterval(TIMER);TIMER=null;$('#go').disabled=false;$('#force').disabled=false;
+  clearInterval(TIMER);TIMER=null;$('#go').disabled=false;
   if(r.state=='done')await load($('#date').value);
 }
 async function loadDates(){
   const ds=await(await fetch('/api/dates')).json();
-  $('#dates').innerHTML='<option value="">选择存档日期…</option>'+
+  $('#dates').innerHTML='<option value="">回放历史存档…</option>'+
     ds.map(d=>'<option>'+d+'</option>').join('');
 }
 $('#q').oninput=renderTable;$('#all').onchange=renderTable;
@@ -229,10 +228,10 @@ $('#dates').onchange=e=>{$('#date').value=e.target.value;load(e.target.value)};
 $('#go').onclick=()=>{clearInterval(TIMER);load($('#date').value)};
 async function runIt(){const d=$('#date').value;
   if(!d)return alert('先选日期');
-  $('#go').disabled=true;$('#force').disabled=true;
+  $('#go').disabled=true;
   await fetch('/api/run?date='+d);
   TIMER=setInterval(poll,1500);poll()}
-$('#force').onclick=runIt;
+$('#go').onclick=runIt;
 loadDates();load(today);
 </script></body></html>"""
 
@@ -277,9 +276,7 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path)
         if p.path == "/api/run":
             d = (parse_qs(p.query).get("date") or [date.today().isoformat()])[0]
-            base, exists = files_for(d)
-            if not exists or d == date.today().isoformat():
-                run_pipeline(d)
+            run_pipeline(d)  # 查询=每次都实时计算,不吃任何缓存
             self._send(200, json.dumps({"ok": True, "date": d}, ensure_ascii=False),
                        "application/json; charset=utf-8")
         else:
