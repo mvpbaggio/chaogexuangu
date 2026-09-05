@@ -120,18 +120,20 @@ def step2_fin(symbol: str) -> dict:
     na = pd.isna
     def chk(cond):
         return bool(cond) if cond is not None and not isinstance(cond, str) else cond
+    def tri(s):  # 最近三个单季是否 a>b>c;NaN 参与比较会静默得 False(次新股缺季度),显式降级"待核实"
+        return "?" if any(na(x) for x in s) else bool(s[0] > s[1] > s[2])
     verdict = {
-        "①毛利率连续2季环比升": ("待核实(无营业成本字段,或数据不足)" if gm_q.empty
-                             else bool(gm_q.iloc[-1] > gm_q.iloc[-2] > gm_q.iloc[-3])),
+        "①毛利率连续2季环比升": ("待核实(无营业成本字段)" if gm_q.empty
+                             else chk(tri([gm_q.iloc[-1], gm_q.iloc[-2], gm_q.iloc[-3]]))),
         "②CapEx连续2季环比增": ("待核实(CapEx字段缺失)" if capex_q.empty
-                            else bool(capex_q.iloc[-1] > capex_q.iloc[-2] > capex_q.iloc[-3])),
+                            else chk(tri([capex_q.iloc[-1], capex_q.iloc[-2], capex_q.iloc[-3]]))),
         "②在建工程同比≥30%": ("待核实(字段缺失)" if cip_yoy.empty or na(cip_yoy.iloc[-1])
                              else bool(cip_yoy.iloc[-1] >= 30)),
         "③OCF/净利润≥0.8": ("待核实(净利为负,比值无意义)" if profit["PARENT_NETPROFIT"].iloc[-1] <= 0
                            else ("待核实(数据缺失)" if ocf_ratio.empty or na(ocf_ratio.iloc[-1])
                                  else bool(ocf_ratio.iloc[-1] >= 0.8))),
         "④合同负债连续2季环比增": ("待核实(字段缺失)" if contract.empty
-                             else bool(contract.iloc[-1] > contract.iloc[-2] > contract.iloc[-3])),
+                             else chk(tri([contract.iloc[-1], contract.iloc[-2], contract.iloc[-3]]))),
     }
     return {"报告期数据": rows, "验证判定": verdict}
 

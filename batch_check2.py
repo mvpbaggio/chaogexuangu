@@ -70,17 +70,24 @@ def main():
         code = c["code"]
         try:
             g3 = [gm.loc[code, DATES[2]], gm.loc[code, DATES[3]], gm.loc[code, DATES[4]]]
-            v1 = bool(g3[0] > g3[1] > g3[2]) if all(pd.notna(g3)) else "?"
+            # DATES 升序,g3=[旧,中,新];"连续2季环比升"= 新>中>旧
+            v1 = bool(g3[2] > g3[1] > g3[0]) if all(pd.notna(g3)) else "?"
             k3 = [capex.loc[code, DATES[2]], capex.loc[code, DATES[3]], capex.loc[code, DATES[4]]]
-            v2 = bool(k3[0] > k3[1] > k3[2]) if all(pd.notna(k3)) else "?"
+            v2 = bool(k3[2] > k3[1] > k3[0]) if all(pd.notna(k3)) else "?"
             np_ = profit.loc[code, DATES[4]]
-            v3 = ("?" if (pd.isna(np_) or np_ <= 0)  # 净利为负时 OCF/净利 比值无意义(红队证伪发现的口径坑)
+            v3 = ("?" if (pd.isna(np_) or np_ <= 0)  # 净利为负时 OCF/净利 比值无意义
                   else bool(ocf.loc[code, DATES[4]] / np_ >= 0.8))
             p3 = [prepay.loc[code, DATES[2]], prepay.loc[code, DATES[3]], prepay.loc[code, DATES[4]]]
-            v4 = bool(p3[0] > p3[1] > p3[2]) if all(pd.notna(p3)) else "?"
+            v4 = bool(p3[2] > p3[1] > p3[0]) if all(pd.notna(p3)) else "?"
             passed = sum(1 for x in (v1, v2, v3, v4) if x is True)
+            npyoy = data[("lrb", DATES[4])].loc[code, "净利润同比"] if "净利润同比" in data[("lrb", DATES[4])].columns else None
+            # 观察档:盈利质量过关(③)且净利同比高增,但结构指标不足——批量看不到在建工程/真实合同负债,
+            # 强在建型标的(如艾森股份)靠此档补盲区,进精确复核
+            grade = ("晋级" if passed >= 3 else
+                     "观察" if v3 is True and isinstance(npyoy, (int, float)) and not pd.isna(npyoy) and npyoy >= 30 else
+                     "淘汰")
             rows.append([code, c["name"], c["mktcap亿"], c["估算日额万"],
-                         str(v1), str(v2), "?", str(v3), str(v4), passed, ""])
+                         str(v1), str(v2), "?", str(v3), str(v4), passed, grade])
         except KeyError:
             rows.append([code, c["name"], c["mktcap亿"], c["估算日额万"],
                          "?", "?", "?", "?", "?", 0, "缺报告期数据"])
