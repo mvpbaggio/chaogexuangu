@@ -42,8 +42,9 @@ def last_report_dates(n=5, today=None):
     return [d.strftime("%Y%m%d") for d in sorted(ends[:n])]
 
 
-# 5 个报告期(累计值),差分出最近 4 个单季
-DATES = last_report_dates(5)
+# 5 个报告期(累计值),差分出最近 4 个单季;SERENITY_ASOF 可指定"以某日视角"取披露口径
+_asof = os.environ.get("SERENITY_ASOF")
+DATES = last_report_dates(5, today=date.fromisoformat(_asof) if _asof else None)
 
 
 def retry(fn, name, n=3):

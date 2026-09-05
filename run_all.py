@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""一键全流程:粗筛 -> 财务初筛 -> 画像预筛。耗电商约 4 分钟(依赖东财/新浪接口)。
+"""一键全流程:粗筛 -> 财务初筛 -> 画像预筛。约 2-4 分钟(依赖东财/新浪接口)。
+环境变量 SERENITY_ASOF=YYYY-MM-DD 时,财报按该日期披露口径取报告期(行情快照仍为最新)。
 用法:python run_all.py [最小市值亿] [最大市值亿] [最小换手%]
 产物:candidates.csv -> full_screen_results.csv -> pool_candidates.csv(人工/LLM 终审)
 """
