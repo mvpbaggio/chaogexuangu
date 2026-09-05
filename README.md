@@ -1,40 +1,72 @@
-# AI 选股项目(Serenity 瓶颈投资法)
+# 超哥选股 (chaogexuangu)
 
-## 架构与分工
+Serenity 瓶颈投资法 A 股全市场选股工具链:从全 A 股 5000+ 只,用四步漏斗筛到个位数的候选标的,每一步都有可追溯的数据和明确的淘汰规则。
 
-| 层 | 位置 | 内容 |
-|---|---|---|
-| 数据层 | **Windows 本机** | `check.py`(akshare:财报三大表/研报 + 腾讯行情),输出量化 JSON |
-| 分析层 | **ZCode 内** | `serenity-analyst.md` 角色提示词:四步漏斗筛选 + 红队证伪 + 熔断机制 |
-| 辩论层(可选) | **NAS Docker** | TradingAgents-CN 多智能体 Web(`http://NAS_IP:3000` 前端 / `:8000` API) |
+> 以上市公司公开数据为原料(akshare/东财/腾讯免费接口),不依赖任何付费数据源;全部结论可复现、可证伪。
 
-工作流:指定赛道 → 拆 BOM 找瓶颈(第一步,LLM)→ `check.py` 财务验证(第二步)→ 硬性筛选(第三步)→ 红队证伪(第四步)→ 输出综合评级 + 熔断里程碑。
+## 方法论:Serenity 四步漏斗
 
-## 使用
+1. **逆向拆解瓶颈**:从赛道出发拆 BOM,六问筛真瓶颈(物理必需/扩产≥18个月/供应商≤3家/BOM占比≤5%/缺失即停产/低关注度)
+2. **穿透财务拐点**:毛利率连续 2 季环比升、CapEx 连续增、OCF/净利≥0.8、合同负债连续升——≥3 项通过才放行,且必须用最新季报净利同比二次确认
+3. **锁定非对称标的**:市值 30-150 亿、机构评级 ≤10 家、日均成交额 ≥5000 万、细分市占率前三、机构持仓低
+4. **AI 红队证伪**:扮演空头,技术替代/大客户自研/供应链断裂三维度证伪,高风险≥2 直接否决
 
-### 数据层(本机)
+配套**熔断机制**:每个入选标的设定 3-5 个 6 个月内可验证的里程碑,未达成即清仓。
+
+完整规则见 [serenity-analyst.md](serenity-analyst.md)(含标准作业程序 SOP 和实战中踩出的 7 条坑清单)。
+
+## 快速开始
+
 ```bash
-PY=F:/工具箱/AI工具/.zcode/tools/python312/python.exe
-$PY F:/工具箱/AI工具/.zcode/tools/ai-stock-picking/check.py 600519          # 单只
-$PY check.py 600519 --hist                                                  # 附带近60日行情
+pip install -r requirements.txt   # Python 3.10+
 ```
-输出 JSON 含:近4季度单季毛利率/CapEx/在建工程同比/OCF比净利润/合同负债 + 市值/日均成交额/研报篇数,并自动给出第二步四项验证判定。
 
-### 分析层
-把 `serenity-analyst.md` 作为角色提示词,配合 `check.py` 输出执行四步流程。所有数字必须来自脚本或标注来源,无来源标"待核实"。
+**① 全市场粗筛**(秒级,腾讯快照:市值 30-150 亿 + 换手 + 成交额):
 
-### 辩论层(NAS)
-已部署完成:backend/frontend/mongodb/redis 四容器常驻,后端 `/api/health` 健康。
-**首次使用前必须**:`ssh nas` 编辑 `/data_VRJV6L7K/data/udata/real/ai-stock-picking/TradingAgents-CN/.env`,填 `DEEPSEEK_API_KEY=... DEEPSEEK_ENABLED=true`(或其它供应商 key),然后 `../bin/docker-compose up -d` 重启。
-访问 `http://192.168.0.114:3000`(前端)/ `:8000`(API)。
+```bash
+python screen.py                  # 默认阈值,输出 candidates.csv
+python screen.py 30 100 2.0       # 自定义:市值 30-100 亿、换手≥2%
+```
 
-## 数据源说明
-- **东财 push2 行情接口不稳定**(曾整域不通),行情一律走腾讯源 `stock_zh_a_hist_tx`;财报接口走东财。
-- 市值 = 最新收盘价 × 总股本(资产负债表 SHARE_CAPITAL),非东财实时市值,盘后口径。
-- 单季 CapEx 为相邻报告期累计值差分,可为负(退款/冲回),分析时注意。
-- 研报接口返回**篇数**非评级家数,精确"买入/增持家数 ≤10"需人工或后续用 easy_tdx/其他接口核实。
-- easy_tdx(`pip install easy-tdx`)留作分钟线/实时盘口/行情备份,首版未接。
+**② 财务拐点初筛**(约 3 分钟,东财按报告期批量三表,全市场向量化):
 
-## 已知边界(ponytail)
-- 东财报表字段名随版本变动,在建工程(CIP)缺失时该项标"待核实"不阻塞。
-- 第三步标准④(市占率)与⑤(前十大流通股东机构占比)无免费稳定接口,由分析环节引用公开资料,无来源标"待核实"。
+```bash
+python batch_check2.py            # 输出 full_screen_results.csv,取通过≥3 项
+```
+
+**③ 精确终审**(逐只,真实在建工程/合同负债/研报数,替代批量代理口径):
+
+```bash
+python check.py 600519            # 单只全量指标 JSON
+python check.py 600519 --hist     # 附带近 60 日行情
+```
+
+> ⚠️ 批量引擎(②)只做初筛,其毛利率/CapEx 为代理口径,有假阳性——**初筛通过的必须用 check.py 终审**,两引擎结论冲突时以精确口径为准,降级"待定"。
+
+**④ 红队证伪**:把候选池交给 LLM(或在 [serenity-analyst.md](serenity-analyst.md) 角色下驱动任何 AI),按第四步检索公告/研报写证伪报告。
+
+## 一次完整实盘的结果(2026-09)
+
+全流程实跑记录见 [serenity-screen-result.md](serenity-screen-result.md):
+
+```
+全 A 5222 → 硬标准 2355 → 财务拐点 29 → 画像 9 → 红队证伪 → 通过 1 + 待定 4 + 否决 4
+```
+
+数据快照:`candidates.csv`(粗筛池)、`full_screen_results.csv`(全市场判定明细)、`final_pool.csv`(终审池)。
+
+## 实战验证出的关键教训
+
+- **伪拐点**:毛利率环比升是弱信号,9 只过四项判定的标的里 4 只中报净利暴跌 60%~96%——必须做净利同比二次确认
+- **代理口径必有假阳性**:批量表的"营业总支出/投资现金流"与真实"营业成本/购建 CapEx"方向可能相反,初筛≠终审
+- **净利为负时 OCF/净利比值无意义**(负负得正),已做守卫
+- 东财 push2 行情域不稳定 → 行情走腾讯源;报表接口必须重试 + 字段名兜底(版本漂移)
+- 逐股拉报表 60s/只不可行,必须按报告期批量接口(39h → 3min)
+
+## 可选:接 TradingAgents-CN 多智能体辩论层
+
+将候选池丢进 [TradingAgents-CN](https://github.com/hsliuping/TradingAgents-CN)(自托管,DeepSeek/Qwen 等)做交叉验证;`nginx.conf` 是其前端反代 `/api` 到后端的修正配置(官方镜像默认指向 localhost,远程访问会 405)。
+
+## 免责声明
+
+本项目仅为研究工具与方法论实践,**不构成任何投资建议**。数据来自公开免费接口,不保证准确性;入市有风险,决策需独立。
