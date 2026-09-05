@@ -225,6 +225,7 @@ async function loadDates(){
 }
 $('#q').oninput=renderTable;$('#all').onchange=renderTable;
 $('#dates').onchange=e=>{$('#date').value=e.target.value;load(e.target.value)};
+$('#date').onchange=e=>load(e.target.value);  // 换日期立即显示该日状态(存档/无存档)
 $('#go').onclick=()=>{clearInterval(TIMER);load($('#date').value)};
 async function runIt(){const d=$('#date').value;
   if(!d)return alert('先选日期');
@@ -259,7 +260,7 @@ class H(BaseHTTPRequestHandler):
             d = (q.get("date") or [date.today().isoformat()])[0]
             base, exists = files_for(d)
             if not exists:
-                self._send(200, json.dumps({"warn": f"{d} 无存档:点「按此日期重算」生成", "funnel": None,
+                self._send(200, json.dumps({"warn": f"{d} 无存档:点「实时筛选(重新计算)」为该日期生成", "funnel": None,
                                             "passed": [], "keep": [], "excluded": []},
                                            ensure_ascii=False), "application/json; charset=utf-8")
                 return
