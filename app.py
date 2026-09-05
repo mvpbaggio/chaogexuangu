@@ -130,6 +130,7 @@ class H(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        self.send_header("Cache-Control", "no-store")  # 页面/接口都禁缓存,改版即生效
         self.end_headers()
         self.wfile.write(body if isinstance(body, bytes) else body.encode("utf-8"))
 
